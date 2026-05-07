@@ -1,18 +1,19 @@
 # NIH Chest X-Ray Multi-Label Disease Classification
 
-Multi-label classification of 14 thoracic diseases from 112,120 chest X-ray images using the NIH ChestX-Ray14 dataset. Five deep learning architectures are benchmarked — ResNet-50, VGG-19, ViT-B/16, Inception V3, and the proposed Swin Transformer V2-S — with Grad-CAM++ explainability.
+Multi-label classification of 14 thoracic diseases from 112,120 chest X-ray images using the NIH ChestX-Ray14 dataset. Six deep learning architectures are benchmarked — ResNet-50, VGG-19, DenseNet-121, Inception V3, ViT-B/16, and the proposed Swin Transformer V2-B — with Grad-CAM++ explainability.
 
 ---
 
 ## Results
 
-| Model | Type | AUC | F1 | Recall |
-|-------|------|-----|----|--------|
-| **Swin Transformer V2-S** | Transformer (Proposed) | **0.8368** | **0.3859** | **0.5237** |
-| Inception V3 | CNN (Baseline) | 0.8366 | 0.3198 | 0.4833 |
-| ResNet-50 | CNN (Baseline) | 0.8270 | 0.3128 | 0.4858 |
-| ViT-B/16 | Transformer (Baseline) | 0.8071 | 0.2791 | 0.4150 |
-| VGG-19 | CNN (Baseline) | 0.7897 | 0.2459 | 0.4509 |
+| Model | AUC | Loss | F1 | Precision | Recall | Best Epochs | Time (Hours) |
+|------|-----|------|----|-----------|--------|-------------|--------------|
+| DenseNet-121 | 0.8163 | 0.0373 | 0.2816 | 0.2526 | 0.3289 | 7–15 | 3.67 |
+| ResNet-50 | 0.8134 | 0.0380 | 0.2748 | 0.2440 | 0.3326 | 7 | 3.74 |
+| Inception V3 | 0.8216 | 0.0373 | 0.2280 | 0.2100 | 0.2999 | 7 | 2.85 |
+| Swin Transformer | 0.8505 | 0.0358 | 0.3107 | 0.2876 | 0.3662 | 12–20 | 5.83 |
+| Vision Transformer (ViT-B/16) | 0.8312 | 0.0370 | 0.2931 | 0.2915 | 0.3479 | 7 | 2.57 |
+| VGG-19 | 0.8341 | 0.0365 | 0.3045 | 0.2751 | 0.3664 | 7 | 3.45 |
 
 ---
 
@@ -52,11 +53,17 @@ chest-xray-multilabel-classification/
 
 ## Key Design Decisions
 
-**Multi-label classification** — Each image can contain multiple concurrent diseases. Uses `BCEWithLogitsLoss` with `Sigmoid` (not `CrossEntropy` + `Softmax`).
+**Multi-label classification** — Each image can contain multiple concurrent diseases. Uses `Focal Loss` over logits with `Sigmoid` activation (not `CrossEntropy` + `Softmax`).
 
-**Class imbalance handling** — `pos_weight` in `BCEWithLogitsLoss` scales the loss for rare diseases. Hernia (227 samples) receives a weight of ~493 vs No Finding (~60k samples).
+**Class imbalance handling** — `Focal Loss` (α=1, γ=2) downweights easy examples and forces the model to focus on harder and rarer disease classes.
 
-**Per-class threshold optimization** — Optimal classification threshold found per disease on the validation set by maximizing F1, then applied to the test set.
+**Per-class threshold optimization** — Optimal classification threshold found independently per disease on the validation set by maximizing F1, then applied unchanged to the test set.
+
+**Mixed precision training** — `autocast` + `GradScaler` for faster GPU utilization without sacrificing numerical stability.
+
+**OneCycleLR scheduling** — Warm-up then cosine decay, stepped once per epoch for stable convergence.
+
+**Early stopping** — Monitors validation AUC with patience of 5 epochs; best weights are saved and reloaded for evaluation.
 
 **Grad-CAM++ explainability** — Applied to the Swin Transformer to highlight which X-ray regions influenced each prediction, addressing the clinical trust problem.
 
